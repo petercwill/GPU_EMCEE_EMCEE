@@ -19,6 +19,7 @@ void init_walkers(float *walkers, unsigned int n_walkers,
 	}
 }
 
+
 double Rosenbrock(float *walker)
 {
 	return ((double) exp(-((100*pow(walker[1] - pow(walker[0],2), 2)) + pow(1 - walker[0], 2)) / 20));
@@ -30,6 +31,22 @@ float G(float a, float u)
 	return pow((u*(a-1)+1) / sqrtf(a),2);
 }
 
+
+void ensemble_mean(float *walkers, int n_walkers, int n_theta, int step, double *means)
+{
+	double mean;
+	for(int t=0; t<n_theta; t++)
+	{
+		mean = 0;
+		for(int w=0; w<n_walkers; w++)
+		{
+			mean += walkers[Index(w,t,n_walkers)];
+		}
+		means[t + (step*n_theta)] = mean / n_walkers;
+	}
+}
+
+
 void step_walkers(float *walkers, int n_walkers, int n_theta,
 	       	int k, int offset, float a)
 {
@@ -38,20 +55,24 @@ void step_walkers(float *walkers, int n_walkers, int n_theta,
 	float w1[MAX_THETA_SIZE], x_prime[MAX_THETA_SIZE], z;
 	float u1 = (float) rand() / (float) RAND_MAX;
 	float u2 = (float) rand() / (float) RAND_MAX;
+
 	for(int w1_idx=offset; w1_idx<k+offset; w1_idx++)
 	{
 		w2_idx = k + (rand() % (n_walkers - k)) - offset;
 
+		z = G(a, u1);	
 		for(int t=0; t<n_theta; t++)
 		{
-			w1[t] = walkers[
-				Index(w1_idx, t, n_walkers)];
-			x_prime[t] = walkers[
-				Index(w2_idx, t, n_walkers)];
+			w1[t] = walkers[Index(w1_idx, t, n_walkers)];
+			x_prime[t] =
+			       	walkers[Index(w2_idx, t, n_walkers)]
+			       	+ z*(w1[t] - walkers[
+						Index(w2_idx,t,
+						       	n_walkers)]);
+
 		}	
 		q1 = Rosenbrock(w1);
 		q2 = Rosenbrock(x_prime);
-		z = G(a, u1);	
 		if(u2 < (powf(z, n_theta - 1)*(q2/q1)))
 		{
 			for(int t=0; t < n_theta; t++)
@@ -64,8 +85,9 @@ void step_walkers(float *walkers, int n_walkers, int n_theta,
 	}
 }	
 
+
 void emcee_emcee(float *walkers, int n_walkers, int n_theta,
-		unsigned int steps, float a)
+		unsigned int steps, float a, double *means)
 {
 	int k = floor((double) n_walkers / 2);
 	int k2 = n_walkers - k;
@@ -76,9 +98,11 @@ void emcee_emcee(float *walkers, int n_walkers, int n_theta,
 			       	k, 0, a); 
 		step_walkers(walkers, n_walkers, n_theta,
 				k2, k, a);
+		ensemble_mean(walkers, n_walkers, n_theta,
+			       	s, means);
 	}
 }
-	
+
 
 int main(int argc, char *argv[])
 {
@@ -86,6 +110,7 @@ int main(int argc, char *argv[])
 	float r = 2.0;
 	int seed = 10;
 	float a = 2.0;
+	double *means;
 
 	if(argc != 4)
 	{
@@ -107,10 +132,13 @@ int main(int argc, char *argv[])
 	unsigned int n_walkers = atoi(argv[1]);
 	unsigned int n_theta = atoi(argv[2]);
 	unsigned int steps = atoi(argv[3]);
+		
 	srand(seed);	
 	walkers = malloc(n_walkers*n_theta*sizeof(float));
+	means = malloc(n_theta*steps*sizeof(double));
+
 	init_walkers(walkers, n_walkers, n_theta, r);
-	emcee_emcee(walkers, n_walkers, n_theta, steps, a); 	
+	emcee_emcee(walkers, n_walkers, n_theta, steps, a, means);
 
 	FILE *fp = fopen("seq_out.txt", "w");
 	for(int w = 0; w < n_walkers; w++)

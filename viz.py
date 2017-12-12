@@ -1,8 +1,8 @@
 import matplotlib.pylab as plt
 import numpy as np
 
-file1 = "out.txt"
-file2 = "out2.txt"
+file1 = "test.out"
+file2 = "test2.out"
 
 xs1 = []
 ys1 = []
@@ -38,8 +38,8 @@ ax.scatter(xs1, ys1)
 ax.scatter(xs2, ys2, c='r')
 plt.show()
 
-ts = [i for i in range(len(x_means))]
-plt.plot(ts, x_means)
-plt.show()
-plt.plot(ts, y_means)
-plt.show()
+#ts = [i for i in range(len(x_means))]
+#plt.plot(ts, x_means)
+#plt.show()
+#plt.plot(ts, y_means)
+#plt.show()
