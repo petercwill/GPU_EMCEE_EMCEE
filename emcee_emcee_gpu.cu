@@ -24,6 +24,12 @@ __global__ void step_walkers(float *walkers, unsigned int
 
 void walkers_to_file(float* walkers, unsigned int n_walkers, 
 		unsigned int n_theta, const char *f_name);
+
+void get_means(float *walkers, double *means, unsigned int n_walkers,
+		unsigned int n_theta, int step);
+
+void means_to_file(double* means, unsigned int steps, 
+		unsigned int n_theta, const char *f_name);
 /***************************************************************/
 unsigned int get_block_size(unsigned int n_walkers)
 {
@@ -40,7 +46,8 @@ unsigned int get_block_size(unsigned int n_walkers)
 int main(int argc, char*argv[])
 {
 	curandState_t *states;
-	float *walkers_h, *walkers_d;
+	float *walkers_d;
+	double *means;
 	
 	int seed = 10;
 	int a = 2;
@@ -79,6 +86,9 @@ int main(int argc, char*argv[])
 	long states_byte_sz = n_walkers*sizeof(curandState_t);
 	long walker_byte_sz = n_walkers*n_theta*sizeof(float);
 	unsigned int s_mem_sz = 2*n_theta*sizeof(float);
+	long means_sz = n_theta*steps*sizeof(double);
+
+	means = (double*) malloc(means_sz);
 
 	fprintf(stdout,"LAUNCHING %d BLOCKS OF SIZE %d\n",
 		       	n_blocks, block_sz);
@@ -89,7 +99,6 @@ int main(int argc, char*argv[])
 			seed, n_walkers, states);
 
 	// allocate and init each walker.
-	walkers_h = (float*) malloc(walker_byte_sz);
 	cudaMalloc((void**) &walkers_d, walker_byte_sz);
 	init_walkers<<<2*n_blocks,block_sz>>>(walkers_d, n_walkers,
 			n_theta, r, states);
@@ -106,11 +115,15 @@ int main(int argc, char*argv[])
 		step_walkers<<<n_blocks, block_sz, s_mem_sz>>>(
 				walkers_d, n_walkers, s2_sz, s1_sz,
 			       	n_theta, a, states);
+
+		get_means(walkers_d, means, n_walkers,
+			       	n_theta, s);
 	}
 
-	cudaMemcpy(walkers_h, walkers_d, walker_byte_sz, cudaMemcpyDeviceToHost);
-const char* f_name2 = "test2.out";
-walkers_to_file(walkers_h, n_walkers, n_theta, f_name2); 
+	const char* f_means = "means_gpu.out";
+	means_to_file(means, steps, n_theta, f_means);
+	return 0;	
+
 }
 /***************************************************************/
 __global__ void init_curand_states(int seed,
@@ -242,4 +255,27 @@ void get_means(float *walkers, double *means, unsigned int n_walkers,
 
 	for(int t =0; t < n_theta; t++)
 	{
-		start_ind = walkers
+		start_ind = walkers + t*n_walkers;
+		stop_ind = walkers + (t+1)*n_walkers;
+		thrust::device_vector<float> vec(
+				start_ind, stop_ind);
+
+		means[t + n_theta*step] = thrust::reduce(
+				vec.begin(), vec.end()) / n_walkers;
+	}
+}
+
+/***************************************************************/
+void means_to_file(double* means, unsigned int steps, 
+		unsigned int n_theta, const char *f_name)
+{
+	FILE *fp = fopen(f_name,"w");
+	for(int s = 0; s < steps; s++)
+	{
+		for(int t = 0; t < n_theta; t++){
+			fprintf(fp, "%f\t", means[t + n_theta*s]);
+		}
+		fprintf(fp, "\n");
+	}
+	fclose(fp);
+}

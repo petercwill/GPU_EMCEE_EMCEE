@@ -2,10 +2,72 @@
 #include <stdio.h>
 #include <math.h>
 
+/**************************************************************/
 #define MAX_THETA_SIZE 256
 #define Index(w, t, n) ((w) + ((t)*(n)))
 
+/**************************************************************/
+void init_walkers(float *walkers, unsigned int n_walkers, 
+	unsigned int theta_n, float r);
 
+double Rosenbrock(float *walker);
+
+float G(float a, float u);
+
+void ensemble_mean(float *walkers, int n_walkers, int n_theta,
+	       	int step, double *means);
+
+void step_walkers(float *walkers, int n_walkers, int n_theta,
+	       	int k, int offset, float a);
+
+void emcee_emcee(float *walkers, int n_walkers, int n_theta,
+		unsigned int steps, float a, double *means);
+
+void means_to_file(double* means, unsigned int steps, 
+		unsigned int n_theta, const char *f_name);
+/**************************************************************/
+int main(int argc, char *argv[])
+{
+	float *walkers;
+	float r = 2.0;
+	int seed = 10;
+	float a = 2.0;
+	double *means;
+
+	if(argc != 4)
+	{
+		fprintf(stderr, "usage: emcee_emcee_seq" 
+				"n_walkers, n_theta, steps\n");
+
+		fprintf(stderr, "n_walkers: number of walkers"
+			       	"to use in the ensemble\n");
+
+		fprintf(stderr, "n_theta: the dimension of the"
+			       	"probability space to sample"
+			       	"from\n");
+
+		fprintf(stderr, "steps = number of steps each"
+			       	"walker will take in the"
+			       	"simulation");
+		exit(1);
+	}
+
+	unsigned int n_walkers = atoi(argv[1]);
+	unsigned int n_theta = atoi(argv[2]);
+	unsigned int steps = atoi(argv[3]);
+		
+	srand(seed);	
+	walkers = malloc(n_walkers*n_theta*sizeof(float));
+	means = malloc(n_theta*steps*sizeof(double));
+
+	init_walkers(walkers, n_walkers, n_theta, r);
+	emcee_emcee(walkers, n_walkers, n_theta, steps, a, means);
+	const char *f_means = "means_seq.out";
+	means_to_file(means, steps, n_theta, f_means); 
+
+}
+
+/**************************************************************/
 void init_walkers(float *walkers, unsigned int n_walkers, 
 	unsigned int theta_n, float r)
 {
@@ -19,6 +81,7 @@ void init_walkers(float *walkers, unsigned int n_walkers,
 	}
 }
 
+/**************************************************************/
 
 double Rosenbrock(float *walker)
 {
@@ -26,12 +89,14 @@ double Rosenbrock(float *walker)
 }
 
 
+/**************************************************************/
 float G(float a, float u)
 {
 	return pow((u*(a-1)+1) / sqrtf(a),2);
 }
 
 
+/**************************************************************/
 void ensemble_mean(float *walkers, int n_walkers, int n_theta, int step, double *means)
 {
 	double mean;
@@ -47,6 +112,7 @@ void ensemble_mean(float *walkers, int n_walkers, int n_theta, int step, double 
 }
 
 
+/**************************************************************/
 void step_walkers(float *walkers, int n_walkers, int n_theta,
 	       	int k, int offset, float a)
 {
@@ -86,6 +152,7 @@ void step_walkers(float *walkers, int n_walkers, int n_theta,
 }	
 
 
+/**************************************************************/
 void emcee_emcee(float *walkers, int n_walkers, int n_theta,
 		unsigned int steps, float a, double *means)
 {
@@ -104,54 +171,18 @@ void emcee_emcee(float *walkers, int n_walkers, int n_theta,
 }
 
 
-int main(int argc, char *argv[])
+/**************************************************************/
+void means_to_file(double* means, unsigned int steps, 
+		unsigned int n_theta, const char *f_name)
 {
-	float *walkers;
-	float r = 2.0;
-	int seed = 10;
-	float a = 2.0;
-	double *means;
-
-	if(argc != 4)
-	{
-		fprintf(stderr, "usage: emcee_emcee_seq" 
-				"n_walkers, n_theta, steps\n");
-
-		fprintf(stderr, "n_walkers: number of walkers"
-			       	"to use in the ensemble\n");
-
-		fprintf(stderr, "n_theta: the dimension of the"
-			       	"probability space to sample"
-			       	"from\n");
-
-		fprintf(stderr, "steps = number of steps each"
-			       	"walker will take in the"
-			       	"simulation");
-	}
-
-	unsigned int n_walkers = atoi(argv[1]);
-	unsigned int n_theta = atoi(argv[2]);
-	unsigned int steps = atoi(argv[3]);
-		
-	srand(seed);	
-	walkers = malloc(n_walkers*n_theta*sizeof(float));
-	means = malloc(n_theta*steps*sizeof(double));
-
-	init_walkers(walkers, n_walkers, n_theta, r);
-	emcee_emcee(walkers, n_walkers, n_theta, steps, a, means);
-
-	FILE *fp = fopen("seq_out.txt", "w");
-	for(int w = 0; w < n_walkers; w++)
+	FILE *fp = fopen(f_name, "w");
+	for(int s = 0; s < steps; s++)
 	{
 		for(int t = 0; t < n_theta; t++)
 		{
-			fprintf(fp, "%f\t", 
-					walkers[
-					Index(w, t, n_walkers)]
-					);
+			fprintf(fp, "%f\t", means[t + n_theta*s]);
 		}
 		fprintf(fp, "\n");
 	}
-
 }
 
